@@ -10,7 +10,6 @@ from io import BytesIO
 
 app = Flask(__name__)
 
-
 # --- 核心排版功能區 ---
 
 def add_page_number(run):
@@ -31,7 +30,6 @@ def add_page_number(run):
     run._r.append(instrText)
     run._r.append(fldChar2)
 
-
 def set_chinese_font(run, size_pt=12):
     """
     強制設定中英文雙字型：
@@ -41,12 +39,11 @@ def set_chinese_font(run, size_pt=12):
     run.font.name = 'Times New Roman'
     run.element.rPr.rFonts.set(qn('w:eastAsia'), '新細明體')
     run.font.size = Pt(size_pt)
-    run.font.color.rgb = None  # 確保是黑色(預設)
-
+    run.font.color.rgb = None # 確保是黑色(預設)
 
 def format_thesis(doc_stream, paper_title):
     doc = Document(doc_stream)
-
+    
     # 1. 版面設定 (Page Layout)
     # 規定：A4, 上下左右邊界皆為 2公分
     section = doc.sections[0]
@@ -59,8 +56,8 @@ def format_thesis(doc_stream, paper_title):
 
     # 2. 設定預設樣式 (Normal Style)
     style = doc.styles['Normal']
-    style.paragraph_format.line_spacing = 1.0  # 單行間距
-    set_chinese_font(style, 12)  # 預設全域字體設定
+    style.paragraph_format.line_spacing = 1.0 # 單行間距
+    set_chinese_font(style, 12) # 預設全域字體設定
 
     # 3. 頁首與頁尾 (Header & Footer)
     # 頁首：小論文篇名 (置中, 10pt)
@@ -72,10 +69,10 @@ def format_thesis(doc_stream, paper_title):
         header_para.clear()
     else:
         header_para = header.add_paragraph()
-
+    
     header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     h_run = header_para.add_run(paper_title)
-    set_chinese_font(h_run, 10)  # 標題 10級字
+    set_chinese_font(h_run, 10) # 標題 10級字
 
     # 頁尾：頁碼 (置中, 10pt)
     footer = section.footer
@@ -85,14 +82,27 @@ def format_thesis(doc_stream, paper_title):
         footer_para.clear()
     else:
         footer_para = footer.add_paragraph()
-
+    
     footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
     f_run = footer_para.add_run()
-    add_page_number(f_run)  # 插入動態頁碼
+    add_page_number(f_run) # 插入動態頁碼
     set_chinese_font(f_run, 10)
 
     # 4. 內容遍歷與智慧格式化
     is_reference_section = False
+    
+    # [新增功能] 六大標準標題的強制對應表
+    # 只要偵測到這些關鍵字(或是寫錯的標題)，就強制改為標準格式
+    standard_headings = {
+        "前言": "壹、前言",
+        "文獻探討": "貳、文獻探討",
+        "研究方法": "參、研究方法",
+        "研究分析與結果": "肆、研究分析與結果",
+        "研究結論與建議": "伍、研究結論與建議",
+        "參考文獻": "陸、參考文獻",
+        "引註資料": "陸、參考文獻",  # 常見錯誤自動修正
+        "參考資料": "陸、參考文獻"   # 常見錯誤自動修正
+    }
 
     # 用於偵測標題的 Regex
     # 層級一：壹、 (Chinese Number + comma)
@@ -106,10 +116,29 @@ def format_thesis(doc_stream, paper_title):
 
     for para in doc.paragraphs:
         text = para.text.strip()
-
+        
         # 跳過空白段落，但保留格式
         if not text:
             continue
+
+        # [新增邏輯] 自動修正六大標題
+        # 移除空格後檢查是否為標準標題關鍵字
+        clean_text = text.replace(" ", "").replace("　", "")
+        
+        # 檢查是否匹配標準標題 (例如 "前言" -> "壹、前言")
+        # 條件：內容包含關鍵字 且 字數少於15字 (避免誤判內文)
+        for key, correct_title in standard_headings.items():
+            if key in clean_text and len(clean_text) < 15:
+                # 如果已經正確就不動，如果不正確(例如缺編號、編號錯、用詞錯)就修正
+                if clean_text != correct_title.replace(" ", ""):
+                    para.clear() # 清除舊內容
+                    run = para.add_run(correct_title) # 寫入正確標題
+                    set_chinese_font(run, 12)
+                    run.bold = False
+                    text = correct_title # 更新變數以便後續邏輯判斷
+                    # 確保它是標題格式 (不縮排)
+                    para.paragraph_format.first_line_indent = Pt(0) 
+                break
 
         # 4.1 偵測是否進入「參考文獻」區域
         # 進入此區後，後續段落都需要懸掛縮排 (Hanging Indent)
@@ -122,7 +151,7 @@ def format_thesis(doc_stream, paper_title):
             # 強制重設字體
             for run in para.runs:
                 set_chinese_font(run, 12)
-                run.bold = False  # 規定標題不粗體
+                run.bold = False # 規定標題不粗體
             continue
 
         # 4.2 處理「參考文獻」內容的 APA 格式 (懸掛縮排)
@@ -132,7 +161,7 @@ def format_thesis(doc_stream, paper_title):
             para.paragraph_format.left_indent = Pt(24)
             para.paragraph_format.first_line_indent = Pt(-24)
             para.paragraph_format.line_spacing = 1.0
-
+            
             # 內容字體重設
             for run in para.runs:
                 # 參考文獻中的書名/期刊名依照 APA 標準可能需要斜體
@@ -140,27 +169,27 @@ def format_thesis(doc_stream, paper_title):
                 is_italic = run.italic
                 set_chinese_font(run, 12)
                 run.italic = is_italic
-                run.bold = False  # 參考文獻內文通常不粗體
+                run.bold = False # 參考文獻內文通常不粗體
             continue
 
         # 4.3 一般內文標題層級處理
         # 預設段落縮排 (2個字元)
-        para.paragraph_format.first_line_indent = Pt(24)
+        para.paragraph_format.first_line_indent = Pt(24) 
         para.paragraph_format.left_indent = Pt(0)
-
+        
         # 檢查是否為標題，如果是，取消首行縮排(或依習慣調整)，並確保單獨成行
         is_heading = False
-
-        if regex_h1.match(text):  # 壹、前言
+        
+        if regex_h1.match(text): # 壹、前言
             is_heading = True
-            para.paragraph_format.first_line_indent = Pt(0)  # 大標靠左
-        elif regex_h2.match(text):  # 一、研究動機
+            para.paragraph_format.first_line_indent = Pt(0) # 大標靠左
+        elif regex_h2.match(text): # 一、研究動機
             is_heading = True
-            para.paragraph_format.first_line_indent = Pt(0)  # 次標靠左
-        elif regex_h3.match(text):  # (一)
+            para.paragraph_format.first_line_indent = Pt(0) # 次標靠左
+        elif regex_h3.match(text): # (一) 
             is_heading = True
-            para.paragraph_format.first_line_indent = Pt(24)  # 第三層通常縮排
-        elif regex_h4.match(text):  # １、
+            para.paragraph_format.first_line_indent = Pt(24) # 第三層通常縮排
+        elif regex_h4.match(text): # １、
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(24)
 
@@ -168,16 +197,15 @@ def format_thesis(doc_stream, paper_title):
         for run in para.runs:
             set_chinese_font(run, 12)
             # 根據比賽規定：字體限黑色，不可使用粗體、斜體、底線
-            run.bold = False
+            run.bold = False 
             run.italic = False
             run.underline = False
-
+            
     # 存入緩衝區
     output_stream = BytesIO()
     doc.save(output_stream)
     output_stream.seek(0)
     return output_stream
-
 
 # --- 路由區 ---
 
@@ -185,22 +213,21 @@ def format_thesis(doc_stream, paper_title):
 def index():
     return render_template('index.html')
 
-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
         return '沒有上傳檔案', 400
-
+    
     file = request.files['file']
     title = request.form.get('title', '小論文')
-
+    
     if file.filename == '':
         return '未選擇檔案', 400
-
+        
     if file and file.filename.endswith('.docx'):
         # 執行排版
         formatted_file = format_thesis(file, title)
-
+        
         return send_file(
             formatted_file,
             as_attachment=True,
@@ -209,7 +236,6 @@ def upload_file():
         )
     else:
         return '請上傳 .docx 格式的 Word 檔案', 400
-
 
 if __name__ == '__main__':
     # 確保 template 資料夾存在
