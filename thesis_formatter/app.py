@@ -45,7 +45,7 @@ def format_thesis(doc_stream, paper_title):
     doc = Document(doc_stream)
     
     # 1. 版面設定 (Page Layout)
-    # 規定：A4, 上下左右邊界皆為 2公分
+    # 規定：A4, 上下左右邊界皆為 2公分 [cite: 333]
     section = doc.sections[0]
     section.page_height = Cm(29.7)
     section.page_width = Cm(21.0)
@@ -56,11 +56,11 @@ def format_thesis(doc_stream, paper_title):
 
     # 2. 設定預設樣式 (Normal Style)
     style = doc.styles['Normal']
-    style.paragraph_format.line_spacing = 1.0 # 單行間距
+    style.paragraph_format.line_spacing = 1.0 # 單行間距 [cite: 332]
     set_chinese_font(style, 12) # 預設全域字體設定
 
     # 3. 頁首與頁尾 (Header & Footer)
-    # 頁首：小論文篇名 (置中, 10pt)
+    # 頁首：小論文篇名 (置中, 10pt) [cite: 337]
     header = section.header
     header.is_linked_to_previous = False
     if header.paragraphs:
@@ -73,7 +73,7 @@ def format_thesis(doc_stream, paper_title):
     h_run = header_para.add_run(paper_title)
     set_chinese_font(h_run, 10)
 
-    # 頁尾：頁碼 (置中, 10pt)
+    # 頁尾：頁碼 (置中, 10pt) [cite: 337]
     footer = section.footer
     footer.is_linked_to_previous = False
     if footer.paragraphs:
@@ -90,8 +90,9 @@ def format_thesis(doc_stream, paper_title):
     # 4. 內容遍歷與智慧格式化
     is_reference_section = False
     
-    # [功能1] 六大標準標題強制對應表
+    # [修改點 1] 六大標準標題強制對應表 (含英文) [cite: 339, 404]
     standard_headings = {
+        # 中文標準
         "前言": "壹、前言",
         "文獻探討": "貳、文獻探討",
         "研究方法": "參、研究方法",
@@ -99,21 +100,36 @@ def format_thesis(doc_stream, paper_title):
         "研究結論與建議": "伍、研究結論與建議",
         "參考文獻": "陸、參考文獻",
         "引註資料": "陸、參考文獻",
-        "參考資料": "陸、參考文獻"
+        # 英文標準
+        "Introduction": "I. Introduction",
+        "LiteratureReview": "II. Literature Review",
+        "ResearchMethods": "III. Research Methods",
+        "AnalysisandResults": "IV. Analysis and Results",
+        "ConclusionandSuggestions": "V. Conclusion and Suggestions",
+        "References": "VI. References"
     }
 
     # Regex 定義
-    regex_h1 = re.compile(r'^[壹貳參肆伍陸]、')
-    regex_h2 = re.compile(r'^[一二三四五六七八九十]+、')
-    regex_h3 = re.compile(r'^\（[一二三四五六七八九十]+\）')
-    regex_h4 = re.compile(r'^[０-９]+、')
+    # 中文層級
+    regex_h1_zh = re.compile(r'^[壹貳參肆伍陸]、')
+    regex_h2_zh = re.compile(r'^[一二三四五六七八九十]+、')
+    regex_h3_zh = re.compile(r'^\（[一二三四五六七八九十]+\）')
+    regex_h4_zh = re.compile(r'^[０-９]+、')
 
-    # [功能3] 圖表計數器 (用於自動修正編號順位)
+    # [修改點 2] 英文層級 Regex [cite: 350-353]
+    # Level 1: I. II. III.
+    regex_h1_en = re.compile(r'^(I|II|III|IV|V|VI)\.\s*') 
+    # Level 2: (I) (II)
+    regex_h2_en = re.compile(r'^\((I|II|III|IV|V|VI)\)\s*')
+    # Level 3: A. B.
+    regex_h3_en = re.compile(r'^[A-Z]\.\s*')
+
+    # 圖表計數器
     fig_count = 0
     table_count = 0
-    # 偵測圖表標題的 Regex (例如: 圖1、圖一、Table 1)
-    regex_fig_caption = re.compile(r'^(圖)\s*([0-9]+|[一二三四五六七八九十]+)(.*)')
-    regex_table_caption = re.compile(r'^(表)\s*([0-9]+|[一二三四五六七八九十]+)(.*)')
+    # [修改點 3] 支援英文圖表標題 (Figure/Table)
+    regex_fig_caption = re.compile(r'^(圖|Figure)\s*([0-9]+|[一二三四五六七八九十]+)(.*)', re.IGNORECASE)
+    regex_table_caption = re.compile(r'^(表|Table)\s*([0-9]+|[一二三四五六七八九十]+)(.*)', re.IGNORECASE)
 
     for para in doc.paragraphs:
         text = para.text.strip()
@@ -125,55 +141,48 @@ def format_thesis(doc_stream, paper_title):
         # 清理文字以便比對
         clean_text = text.replace(" ", "").replace("　", "")
         
-        # [功能1] 自動修正與強制六大標題
+        # --- 自動修正與強制六大標題 ---
         for key, correct_title in standard_headings.items():
             # 檢查是否包含關鍵字，且長度短（避免誤判內文）
-            if key in clean_text and len(clean_text) < 15:
+            if key.lower() in clean_text.lower() and len(clean_text) < 30:
                 # 排除已經正確的情況，若不正確則強制修正
                 if clean_text != correct_title.replace(" ", ""):
                     para.clear()
                     run = para.add_run(correct_title)
                     set_chinese_font(run, 12)
-                    run.bold = False # 規定標題不粗體
+                    run.bold = False # 規定標題不粗體 [cite: 328]
                     text = correct_title # 更新變數供後續邏輯使用
                     
-                    # [功能2] 確保「壹、前言」不強制換頁 (避免封面頁效果)
-                    if "前言" in correct_title:
-                        para.paragraph_format.page_break_before = False
+                # 確保前言/Introduction 不強制換頁 (避免封面頁效果) [cite: 341]
+                if "前言" in correct_title or "Introduction" in correct_title:
+                    para.paragraph_format.page_break_before = False
                     
-                    # 確保大標靠左不縮排
-                    para.paragraph_format.first_line_indent = Pt(0)
-                else:
-                     # 即使原本文字正確，也要確保格式正確 (針對 [功能2])
-                    if "前言" in correct_title:
-                        para.paragraph_format.page_break_before = False
-                        para.paragraph_format.first_line_indent = Pt(0)
+                # 確保大標靠左不縮排
+                para.paragraph_format.first_line_indent = Pt(0)
                 break
 
-        # [功能3] 圖表編號自動修正
-        # 檢查是否為圖片標題
+        # --- 圖表編號自動修正 ---
         match_fig = regex_fig_caption.match(text)
         if match_fig:
             fig_count += 1
-            # 重新組建標題： "圖" + 正確順位數字 + 原本標題的後續文字
-            # 這裡強制使用阿拉伯數字 (如圖1)，若原檔是用中文數字也會被統一
-            new_caption = f"圖{fig_count}{match_fig.group(3)}"
+            # 判斷是中文還是英文前綴
+            prefix = "Figure" if "Figure" in match_fig.group(1) or "figure" in match_fig.group(1) else "圖"
+            new_caption = f"{prefix} {fig_count} {match_fig.group(3).strip()}"
             if text != new_caption:
                 para.clear()
                 run = para.add_run(new_caption)
                 set_chinese_font(run, 12)
                 run.bold = False
-            # 圖表標題通常不縮排或置中/置左，這裡保持置左或依原設定
-            # 規定：圖表標題均置於圖表上方置左 -> 確保靠左
+            # 規定：圖表標題均置於圖表上方置左 [cite: 358]
             para.alignment = WD_ALIGN_PARAGRAPH.LEFT
             para.paragraph_format.first_line_indent = Pt(0)
             continue
 
-        # 檢查是否為表格標題
         match_table = regex_table_caption.match(text)
         if match_table:
             table_count += 1
-            new_caption = f"表{table_count}{match_table.group(3)}"
+            prefix = "Table" if "Table" in match_table.group(1) or "table" in match_table.group(1) else "表"
+            new_caption = f"{prefix} {table_count} {match_table.group(3).strip()}"
             if text != new_caption:
                 para.clear()
                 run = para.add_run(new_caption)
@@ -183,10 +192,12 @@ def format_thesis(doc_stream, paper_title):
             para.paragraph_format.first_line_indent = Pt(0)
             continue
 
-        # --- 以下為原本的格式化邏輯 ---
-
-        # 4.1 偵測是否進入「參考文獻」區域
-        if "參考文獻" in text and (text.startswith("陸") or text.startswith("六") or len(text) < 10):
+        # --- 參考文獻區域判斷 ---
+        # 同時偵測中文「陸、參考文獻」與英文「VI. References」
+        is_ref_keyword = ("參考文獻" in text and text.startswith("陸")) or \
+                         ("References" in text and (text.startswith("VI") or text.startswith("6")))
+        
+        if is_ref_keyword:
             is_reference_section = True
             para.paragraph_format.first_line_indent = Pt(0)
             para.paragraph_format.left_indent = Pt(0)
@@ -196,7 +207,7 @@ def format_thesis(doc_stream, paper_title):
                 run.bold = False
             continue
 
-        # 4.2 處理「參考文獻」內容的 APA 格式
+        # --- 處理「參考文獻」內容的 APA 格式 (懸掛縮排) ---
         if is_reference_section:
             para.paragraph_format.left_indent = Pt(24)
             para.paragraph_format.first_line_indent = Pt(-24)
@@ -208,25 +219,33 @@ def format_thesis(doc_stream, paper_title):
                 run.bold = False
             continue
 
-        # 4.3 一般內文與標題層級處理
+        # --- 一般內文與標題層級處理 ---
+        # 預設：首行縮排 2 字元 (約 24pt)
         para.paragraph_format.first_line_indent = Pt(24) 
         para.paragraph_format.left_indent = Pt(0)
         
         is_heading = False
         
-        if regex_h1.match(text): # 壹、
+        # 中文標題判斷
+        if regex_h1_zh.match(text) or regex_h2_zh.match(text): # 壹、 或 一、
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(0)
-        elif regex_h2.match(text): # 一、
+        elif regex_h3_zh.match(text) or regex_h4_zh.match(text): # (一) 或 1、
+            is_heading = True
+            para.paragraph_format.first_line_indent = Pt(24) # 依規定，此層級通常有縮排
+
+        # [修改點 4] 英文標題判斷 - 解決內縮問題
+        elif regex_h1_en.match(text): # I. II. -> 大標題不縮排
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(0)
-        elif regex_h3.match(text): # (一)
+        elif regex_h2_en.match(text): # (I) (II) -> 視為次級標題，設為不縮排以區隔內文
             is_heading = True
-            para.paragraph_format.first_line_indent = Pt(24) # 依規定，(一) 也要縮排
-        elif regex_h4.match(text): # １、
+            para.paragraph_format.first_line_indent = Pt(0)
+        elif regex_h3_en.match(text): # A. B. -> 視為內文列表，維持縮排
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(24)
 
+        # 統一字體設定
         for run in para.runs:
             set_chinese_font(run, 12)
             run.bold = False 
@@ -243,7 +262,17 @@ def format_thesis(doc_stream, paper_title):
 
 @app.route('/', methods=['GET'])
 def index():
-    return render_template('index.html')
+    # 簡單的 HTML 上傳介面
+    return '''
+    <!doctype html>
+    <title>小論文排版工具</title>
+    <h1>上傳 Word 檔案 (.docx) 進行排版</h1>
+    <form method=post enctype=multipart/form-data action="/upload">
+      <p>篇名 (將顯示於頁首): <input type=text name=title value="小論文篇名"></p>
+      <p><input type=file name=file>
+         <input type=submit value="上傳並排版"></p>
+    </form>
+    '''
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -271,5 +300,5 @@ def upload_file():
 
 if __name__ == '__main__':
     if not os.path.exists('templates'):
-        os.makedirs('templates')
+        os.makedirs('templates', exist_ok=True)
     app.run(debug=True, port=5000)
