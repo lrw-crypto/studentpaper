@@ -44,8 +44,8 @@ def set_chinese_font(run, size_pt=12):
 def format_thesis(doc_stream, paper_title):
     doc = Document(doc_stream)
     
-    # 1. 版面設定 (Page Layout)
-    # 規定：A4, 上下左右邊界皆為 2公分 [cite: 333]
+    # 1. 版面設定 (Page Layout) [cite: 323, 333]
+    # 規定：A4, 上下左右邊界皆為 2公分
     section = doc.sections[0]
     section.page_height = Cm(29.7)
     section.page_width = Cm(21.0)
@@ -54,13 +54,13 @@ def format_thesis(doc_stream, paper_title):
     section.left_margin = Cm(2)
     section.right_margin = Cm(2)
 
-    # 2. 設定預設樣式 (Normal Style)
+    # 2. 設定預設樣式 (Normal Style) [cite: 332]
     style = doc.styles['Normal']
-    style.paragraph_format.line_spacing = 1.0 # 單行間距 [cite: 332]
+    style.paragraph_format.line_spacing = 1.0 # 單行間距
     set_chinese_font(style, 12) # 預設全域字體設定
 
-    # 3. 頁首與頁尾 (Header & Footer)
-    # 頁首：小論文篇名 (置中, 10pt) [cite: 337]
+    # 3. 頁首與頁尾 (Header & Footer) [cite: 337]
+    # 頁首：小論文篇名 (置中, 10pt)
     header = section.header
     header.is_linked_to_previous = False
     if header.paragraphs:
@@ -73,7 +73,7 @@ def format_thesis(doc_stream, paper_title):
     h_run = header_para.add_run(paper_title)
     set_chinese_font(h_run, 10)
 
-    # 頁尾：頁碼 (置中, 10pt) [cite: 337]
+    # 頁尾：頁碼 (置中, 10pt)
     footer = section.footer
     footer.is_linked_to_previous = False
     if footer.paragraphs:
@@ -90,7 +90,7 @@ def format_thesis(doc_stream, paper_title):
     # 4. 內容遍歷與智慧格式化
     is_reference_section = False
     
-    # [修改點 1] 六大標準標題強制對應表 (含英文) [cite: 339, 404]
+    # 六大標準標題強制對應表 (含英文) [cite: 339, 404-406]
     standard_headings = {
         # 中文標準
         "前言": "壹、前言",
@@ -116,7 +116,7 @@ def format_thesis(doc_stream, paper_title):
     regex_h3_zh = re.compile(r'^\（[一二三四五六七八九十]+\）')
     regex_h4_zh = re.compile(r'^[０-９]+、')
 
-    # [修改點 2] 英文層級 Regex [cite: 350-353]
+    # 英文層級 Regex (支援英文小論文標準) [cite: 350-353]
     # Level 1: I. II. III.
     regex_h1_en = re.compile(r'^(I|II|III|IV|V|VI)\.\s*') 
     # Level 2: (I) (II)
@@ -127,7 +127,7 @@ def format_thesis(doc_stream, paper_title):
     # 圖表計數器
     fig_count = 0
     table_count = 0
-    # [修改點 3] 支援英文圖表標題 (Figure/Table)
+    # 支援英文圖表標題 (Figure/Table)
     regex_fig_caption = re.compile(r'^(圖|Figure)\s*([0-9]+|[一二三四五六七八九十]+)(.*)', re.IGNORECASE)
     regex_table_caption = re.compile(r'^(表|Table)\s*([0-9]+|[一二三四五六七八九十]+)(.*)', re.IGNORECASE)
 
@@ -153,11 +153,11 @@ def format_thesis(doc_stream, paper_title):
                     run.bold = False # 規定標題不粗體 [cite: 328]
                     text = correct_title # 更新變數供後續邏輯使用
                     
-                # 確保前言/Introduction 不強制換頁 (避免封面頁效果) [cite: 341]
+                # 確保前言/Introduction 不強制換頁 (避免封面頁效果)
                 if "前言" in correct_title or "Introduction" in correct_title:
                     para.paragraph_format.page_break_before = False
                     
-                # 確保大標靠左不縮排
+                # 確保大標靠左不縮排 [cite: 334]
                 para.paragraph_format.first_line_indent = Pt(0)
                 break
 
@@ -220,7 +220,7 @@ def format_thesis(doc_stream, paper_title):
             continue
 
         # --- 一般內文與標題層級處理 ---
-        # 預設：首行縮排 2 字元 (約 24pt)
+        # 預設：首行縮排 2 字元 (約 24pt) [cite: 335]
         para.paragraph_format.first_line_indent = Pt(24) 
         para.paragraph_format.left_indent = Pt(0)
         
@@ -234,7 +234,7 @@ def format_thesis(doc_stream, paper_title):
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(24) # 依規定，此層級通常有縮排
 
-        # [修改點 4] 英文標題判斷 - 解決內縮問題
+        # 英文標題判斷 - 解決內縮問題 [cite: 350-352]
         elif regex_h1_en.match(text): # I. II. -> 大標題不縮排
             is_heading = True
             para.paragraph_format.first_line_indent = Pt(0)
@@ -262,17 +262,8 @@ def format_thesis(doc_stream, paper_title):
 
 @app.route('/', methods=['GET'])
 def index():
-    # 簡單的 HTML 上傳介面
-    return '''
-    <!doctype html>
-    <title>小論文排版工具</title>
-    <h1>上傳 Word 檔案 (.docx) 進行排版</h1>
-    <form method=post enctype=multipart/form-data action="/upload">
-      <p>篇名 (將顯示於頁首): <input type=text name=title value="小論文篇名"></p>
-      <p><input type=file name=file>
-         <input type=submit value="上傳並排版"></p>
-    </form>
-    '''
+    # 改為使用模板，請確保 templates/index.html 存在
+    return render_template('index.html')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -299,6 +290,9 @@ def upload_file():
         return '請上傳 .docx 格式的 Word 檔案', 400
 
 if __name__ == '__main__':
+    # 自動建立 templates 資料夾 (如果不存在)，防止錯誤
     if not os.path.exists('templates'):
         os.makedirs('templates', exist_ok=True)
+        print("警告：templates 資料夾已自動建立，請確保 index.html 檔案已放入其中。")
+        
     app.run(debug=True, port=5000)
